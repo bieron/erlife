@@ -8,19 +8,20 @@ start() ->
   gen_server:start({local, ?MODULE}, ?MODULE, [], []).
 
 init([]) ->
-	discover_nodes(),
+	%discover_nodes(),
 	c:nl(master),
 	c:nl(slave),
 	c:nl(board_utils),
-	Board = board_utils:create_board(80),
+	Board = board_utils:create_board(10),
+	say("0: ~n~p~n",[Board]),
 	{ok, #state{board = Board, iteration = 0}}.
 
 begin_work(Slaves) ->
-	lists:foreach(fun(X) -> gen_server:cast(X, begin_work) end, Slaves).
+	lists:foreach(fun(X) -> slave:begin_work(X) end, Slaves).
 
 iterate(Iterations, State = #state{board = Board, iteration = Iteration}) ->
 	%Active_nodes = discover_nodes(),
-	Active_nodes = 4,
+	Active_nodes = 3,
 	Slaves = slave:start_slaves(Active_nodes),
 	Slave_boards = board_utils:divide(Board, Active_nodes),
 	Slaves_with_boards = lists:zip(Slaves, Slave_boards),
@@ -54,8 +55,7 @@ count_pongs(_, Sum) -> Sum.
 
 next() -> Calc_Board = gen_server:call(?MODULE, {next, 1}).
 next(N) ->
-	Calc_Board = gen_server:call(?MODULE, {next, N}),
-	say("~nfinish him ~p~n~n", [Calc_Board]).
+	Calc_Board = gen_server:call(?MODULE, {next, N}).
 
 %% Public API
 
@@ -75,9 +75,7 @@ state() ->
 
 handle_call({next, Iterations}, From, State) ->
 	{ok, New_state} = iterate(Iterations, State),
-
-	%{reply, New_state#state.board, New_state};
-		{noreply, New_state#state{caller_pid = From}};
+	{noreply, New_state#state{caller_pid = From}};
 
 handle_call(stop, _From, State) ->
   %say("stopping by ~p, state was ~p.", [_From, State]),
@@ -91,22 +89,20 @@ handle_call(_Request, _From, State) ->
   say("call ~p, ~p, ~p.", [_Request, _From, State]),
   {reply, ok, State}.
 
+
 handle_cast({result, Slave_pid, Board_frag}, State = #state{
 	slaves_with_boards = Slaves_with_boards, response_count = Count} ) when Count > 1 ->
-	%say("suck my ~p~n", ["penis"]),
-
 	Index = board_utils:find_slice_index(Slaves_with_boards, Slave_pid),
 	New_slaves_with_boards = board_utils:replace_in_list(Index, Slaves_with_boards, {Slave_pid, Board_frag}),
 	{noreply, State#state{slaves_with_boards = New_slaves_with_boards, response_count = Count - 1}};
 
-handle_cast({result, Slave_pid, Board_frag}, State = #state{slaves = Slaves, 
-	slaves_with_boards = Slaves_with_boards, caller_pid = Caller} ) ->
-	say("finally"),
+handle_cast({result, Slave_pid, Board_frag}, State = #state{slaves = Slaves, slaves_with_boards = Slaves_with_boards, caller_pid = Caller} ) ->
 	Index = board_utils:find_slice_index(Slaves_with_boards, Slave_pid),
 	New_slaves_with_boards = board_utils:replace_in_list(Index, Slaves_with_boards, {Slave_pid, Board_frag}),
 	%NewBoard = board_utils:merge(Slaves_with_boards),
 	NewBoard = board_utils:merge(lists:map(fun({_, BoardFrag}) -> BoardFrag end, Slaves_with_boards)),
 	slave:kill_slaves(Slaves),
+	%say("NewBoard:~n~p~ndupa~n",[NewBoard]),
 	gen_server:reply(Caller, NewBoard),
 	{noreply, State#state{slaves_with_boards = New_slaves_with_boards, board = NewBoard}};
 
