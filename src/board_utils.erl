@@ -66,7 +66,7 @@ iterate_2d_tuple_midarea(Board, New_board, Curr_row, Curr_col, Row_len, Col_len,
   New_board2 = Fun(Board, New_board, Curr_row, Curr_col),
   iterate_2d_tuple_midarea(Board, New_board2, Curr_row, Curr_col + 1, Row_len, Col_len, Fun).
 
-determine_cell_value(Board, New_board, Cur_col, Cur_row) ->
+determine_cell_value(Board, New_board, Cur_row, Cur_col) ->
   CurrValue = element(Cur_col, element(Cur_row, Board)),
   AliveNeighbors =  element(Cur_col-1, element(Cur_row+1, Board)) +
                     element(Cur_col-1, element(Cur_row, Board)) +
