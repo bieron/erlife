@@ -69,7 +69,7 @@ handle_cast(begin_work, State = #state{board = Board}) ->
   %say("begin work iterations>0~n"),
   NewBoard = calculate_middle(Board),
   NewState = State#state{new_board = NewBoard}, %, operations_count = Opc-1},
-  NewState2 = check_if_ready(State),
+  NewState2 = check_if_ready(NewState),
   {noreply, NewState2};
 
 handle_cast({iterate, Iterations, Board, P_pid, N_pid, Master_pid}, State) ->

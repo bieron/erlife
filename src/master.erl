@@ -12,7 +12,7 @@ init([]) ->
 	c:nl(master),
 	c:nl(slave),
 	c:nl(board_utils),
-	Board = board_utils:create_board(16),
+	Board = board_utils:create_board(40),
 	say("0: ~n~p~n",[Board]),
 	{ok, #state{board = Board, iteration = 0}}.
 
@@ -21,7 +21,7 @@ begin_work(Slaves) ->
 
 iterate(Iterations, State = #state{board = Board, iteration = Iteration}) ->
 	%Active_nodes = discover_nodes(),
-	Active_nodes = 4,
+	Active_nodes = 7,
 	Slaves = slave:start_slaves(Active_nodes),
 	Slave_boards = board_utils:divide(Board, Active_nodes),
 	Slaves_with_boards = lists:zip(Slaves, Slave_boards),
