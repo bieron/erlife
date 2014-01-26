@@ -2,7 +2,7 @@
 -compile(export_all).
 
 -behaviour(gen_server).
--record(state, {board, neighbors_count, iterations}).
+-record(state, {board, new_board, neighbors_count, iterations, p_pid = none, n_pid = none}).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3, start_slaves/1, kill_slaves/1]).
 
 %% Client API
@@ -52,29 +52,29 @@ handle_call(_Request, _From, State) ->
 % casts from master
 handle_cast({iterate, Iterations, Board, none, N_pid}, State = #state{}) ->
   send_last_row(N_pid, Board),
-  calculate_middle(Board),
-  {noreply, State#state{board = Board, neighbors_count = 1, iterations = Iterations}};
+  NewBoard = calculate_middle(Board),
+  {noreply, State#state{board = Board, new_board = NewBoard, neighbors_count = 1, iterations = Iterations, n_pid = N_pid}};
 handle_cast({iterate, Iterations, Board, P_pid, none}, State = #state{}) ->
   send_first_row(P_pid, Board),
-  calculate_middle(Board),
-  {noreply, State#state{board = Board, neighbors_count = 1, iterations = Iterations}};
+  NewBoard = calculate_middle(Board),
+  {noreply, State#state{board = Board, new_board = NewBoard, neighbors_count = 1, iterations = Iterations, p_pid = P_pid}};
 handle_cast({iterate, Iterations, Board, P_pid, N_pid}, State = #state{}) ->
   send_last_row(N_pid, Board),
   send_first_row(P_pid, Board),
-  calculate_middle(Board),
-  {noreply, State#state{board = Board, neighbors_count = 2, iterations = Iterations}};
+  NewBoard = calculate_middle(Board),
+  {noreply, State#state{board = Board, new_board = NewBoard, neighbors_count = 2, iterations = Iterations, n_pid = N_pid, p_pid = P_pid}};
 
 % casts from other slaves
-handle_cast({previous_row, Row}, State = #state{neighbors_count = Nbc, board = Board}) ->
-  NewBoard = calculate_first_row(Row, Board),
-  NewState = State#state{neighbors_count = Nbc - 1, board = NewBoard},
+handle_cast({previous_row, Row}, State = #state{neighbors_count = Nbc, board = Board, new_board = NewBoard}) ->
+  NewBoard = calculate_first_row(Row, Board, NewBoard),
+  NewState = State#state{neighbors_count = Nbc - 1, board = Board, new_board = NewBoard},
   check_if_ready(NewState),
   {noreply, NewState};
-handle_cast({next_row, Row}, NewState) ->
-  NewBoard = calculate_last_row(Row, Board),
-  NewState = State#state{neighbors_count = Nbc - 1, board = NewBoard},
-  check_if_ready(NewState),
-  {noreply, NewState};
+handle_cast({next_row, Row}, State = #state{neighbors_count = Nbc, board = Board, new_board = NewBoard}) ->
+  NewBoard = calculate_last_row(Row, Board, NewBoard),
+  NewState = State#state{neighbors_count = Nbc - 1, board = Board, new_board = NewBoard},
+  NewState2 = check_if_ready(NewState),
+  {noreply, NewState2};
 
 handle_cast(_Msg, State) ->
   say("cast ~p, ~p.", [_Msg, State]),
@@ -84,6 +84,7 @@ handle_cast(_Msg, State) ->
 handle_info(_Info, State) ->
   say("info ~p, ~p.", [_Info, State]),
   {noreply, State}.
+
 
 
 terminate(_Reason, _State) ->
@@ -106,26 +107,26 @@ send_first_row(Pid, Board) ->
   gen_server:cast(Pid, {next_row, First_row}).
 
 check_if_ready(State = #state{neighbors_count = Nbc}) when Nbc > 0 ->
-  ok;
-check_if_ready(State = #state{neighbors_count = Nbc, iterations = = Iterations}) ->
-  .
-
+  State;
+check_if_ready(State = #state{board = Board, new_board = NewBoard, iterations = Iterations, p_pid = P_pid, n_pid = N_pid}) ->
+  iterate(self(), Iterations-1, Board, P_pid, N_pid),
+  State#state{board = NewBoard, iterations = Iterations-1}.
 
 calculate_middle(Board) ->
-  board_utils:iterate_2d_tuple(Board, fun board_utils:determine_cell_value/4).
+  board_utils:iterate_2d_tuple_midarea(Board, fun board_utils:determine_cell_value/4).
 
-calculate_last_row(Next_row, Board) ->
+calculate_last_row(Next_row, Board, NewBoard) ->
   Len = tuple_size(Board),
   BeforeLastRow = element(Len-1, Board),
   LastRow = element(Len, Board), 
   NewLastRow = board_utils:iterate_row(BeforeLastRow, LastRow, Next_row),
-  setelement(Len, Board, NewLastRow).
+  setelement(Len, NewBoard, NewLastRow).
 
-calculate_first_row(Previous_row, Board) ->
+calculate_first_row(Previous_row, Board, NewBoard) ->
   AfterFirstRow = element(1, Board),
   FirstRow = element(2, Board),
   NewFirstRow = board_utils:iterate_row(AfterFirstRow, FirstRow, Previous_row),
-  setelement(1, Board, NewFirstRow).
+  setelement(1, NewBoard, NewFirstRow).
 
 %% helper functions
 

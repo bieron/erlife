@@ -12,7 +12,7 @@ init([]) ->
 	c:nl(master),
 	c:nl(slave),
 	c:nl(board_utils),
-	Board = list_to_tuple([{X} || X <- lists:seq(1,19)]),
+	Board = board_utils:create_board(10),
 	{ok, #state{board = Board, iteration = 0}}.
 
 iterate(Iterations, State = #state{board = Board, iteration = Iteration}) ->
