@@ -107,8 +107,8 @@ send_first_row(Pid, Board) ->
 
 check_if_ready(State = #state{neighbors_count = Nbc}) when Nbc > 0 ->
   ok;
-check_if_ready(State = #state{neighbors_count = Nbc, iterations = = Iterations}) ->
-  .
+check_if_ready(State = #state{neighbors_count = Nbc, iterations = Iterations}) ->
+  true.
 
 
 calculate_middle(Board) ->
