@@ -129,3 +129,12 @@ jointolist(I, Tuple, List) when I > tuple_size(Tuple) ->
 	List;
 jointolist(I, Tuple, List) ->
 	jointolist(I+1, Tuple, [element(I, Tuple)|List]).
+
+find_slice_index(L,Id) -> 
+	find_slice_index(L,Id,1).
+find_slice_index([{Id,_HBoard}|_],Id,Acc) ->
+	Acc;
+find_slice_index([_|T],Id,Acc) -> find_slice_index(T,Id,Acc+1).
+
+replace_in_list(Index, List, Element) ->
+	lists:sublist(List,Index-1) ++ [Element] ++ lists:nthtail(Index,List).

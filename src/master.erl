@@ -2,7 +2,7 @@
 -compile(export_all).
 -behaviour(gen_server).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
--record(state, {board, iteration}).
+-record(state, {board, iteration, slaves, slaves_with_boards, response_count, caller_pid}).
 
 start() ->
   gen_server:start({local, ?MODULE}, ?MODULE, [], []).
@@ -12,33 +12,32 @@ init([]) ->
 	c:nl(master),
 	c:nl(slave),
 	c:nl(board_utils),
-	Board = list_to_tuple([{X} || X <- lists:seq(1,19)]),
+	Board = board_utils:create_board(10),
 	{ok, #state{board = Board, iteration = 0}}.
 
 iterate(Iterations, State = #state{board = Board, iteration = Iteration}) ->
-	Active_nodes = discover_nodes(),
+	%Active_nodes = discover_nodes(),
+	Active_nodes = 5,
 	Slaves = slave:start_slaves(Active_nodes),
 	Slave_boards = board_utils:divide(Board, Active_nodes),
-
-	Slave_with_boards = lists:zip(Slaves, Slave_boards),
-	order_slaves(Iterations, Slave_with_boards),
-
-	slave:stop_slaves(Slaves),
-	{ok, State#state{iteration = Iteration + Iterations}}.
+	Slaves_with_boards = lists:zip(Slaves, Slave_boards),
+	%gen_server:cast(lists:nth(1,Slaves), {iterate, 1, Board, none, none, self()}),
+	order_slaves(Iterations, Slaves_with_boards),
+	{ok, State#state{iteration = Iteration + Iterations, slaves = Slaves, slaves_with_boards = Slaves_with_boards, response_count = Active_nodes}}.
 
 
-order_slaves(Iterations, [H, T]) ->
+order_slaves(Iterations, [H | T]) ->
 	order_slaves(Iterations, none, H, T).
 
 order_slaves(Iterations, none, {C_pid, C_board}, [{N_pid, N_board}|T]) ->
-	slave:iterate(C_pid, Iterations, C_board, none, N_pid),
+	slave:iterate(C_pid, Iterations, C_board, none, N_pid, self()),
 	order_slaves(Iterations, {C_pid, C_board}, {N_pid, N_board}, T);
 
 order_slaves(Iterations, {P_pid, _}, {C_pid, C_board}, []) ->
-	slave:iterate(C_pid, Iterations, C_board, P_pid, none);
+	slave:iterate(C_pid, Iterations, C_board, P_pid, none, self());
 
 order_slaves(Iterations, {P_pid, _}, {C_pid, C_board}, [{N_pid, N_board}|T]) ->
-	slave:iterate(C_pid, Iterations, C_board, P_pid, N_pid),
+	slave:iterate(C_pid, Iterations, C_board, P_pid, N_pid, self()),
 	order_slaves(Iterations, {C_pid, C_board}, {N_pid, N_board}, T).
 
 
@@ -50,11 +49,9 @@ count_pongs(_, Sum) -> Sum.
 
 %% Client API
 
-next() ->
-	gen_server:call({local, ?MODULE}, {next, 1}).
-
+next() -> next(1).
 next(N) ->
-	gen_server:call({local, ?MODULE}, {next, N}).
+	gen_server:call(?MODULE, {next, N}).
 
 %% Public API
 
@@ -62,7 +59,7 @@ stop(Module) ->
   gen_server:call(Module, stop).
 
 stop() ->
-  stop(?MODULE).
+  stop({local, ?MODULE}).
 
 state(Module) ->
   gen_server:call(Module, state).
@@ -72,9 +69,11 @@ state() ->
 
 %% Server implementation, a.k.a.: callbacks
 
-handle_call({next, Iterations}, _From, State) ->
+handle_call({next, Iterations}, From, State) ->
 	{ok, New_state} = iterate(Iterations, State),
-	{reply, New_state#state.board, New_state};
+
+	%{reply, New_state#state.board, New_state};
+		{noreply, New_state#state{caller_pid = From}};
 
 handle_call(stop, _From, State) ->
   say("stopping by ~p, state was ~p.", [_From, State]),
@@ -88,9 +87,26 @@ handle_call(_Request, _From, State) ->
   say("call ~p, ~p, ~p.", [_Request, _From, State]),
   {reply, ok, State}.
 
+handle_cast({result, Slave_pid, Board_frag}, State = #state{
+	slaves_with_boards = Slaves_with_boards, response_count = Count} ) when Count > 0 ->
+	Index = board_utils:find_slice_index(Slaves_with_boards, Slave_pid),
+	New_slaves_with_boards = board_utils:replace_in_list(Index, Slaves_with_boards, {Slave_pid, Board_frag}),
+	{noreply, State#state{slaves_with_boards = New_slaves_with_boards, response_count = Count - 1}};
+
+handle_cast({result, Slave_pid, Board_frag}, State = #state{slaves = Slaves, 
+	slaves_with_boards = Slaves_with_boards, caller_pid = Caller} ) ->
+	Index = board_utils:find_slice_index(Slaves_with_boards, Slave_pid),
+	New_slaves_with_boards = board_utils:replace_in_list(Index, Slaves_with_boards, {Slave_pid, Board_frag}),
+	NewBoard = board_utils:merge(Slaves_with_boards),
+	slave:kill_slaves(Slaves),
+	gen_server:reply(Caller, NewBoard),
+	{noreply, State#state{slaves_with_boards = New_slaves_with_boards, board = NewBoard}};
+
 handle_cast(_Msg, State) ->
   say("cast ~p, ~p.", [_Msg, State]),
   {noreply, State}.
+
+
 
 
 handle_info(_Info, State) ->

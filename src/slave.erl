@@ -2,19 +2,20 @@
 -compile(export_all).
 
 -behaviour(gen_server).
--record(state, {board, neighbors_count, iterations}).
+-record(state, {board, new_board, neighbors_count, iterations, p_pid = none, n_pid = none, master_pid = none}).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3, start_slaves/1, kill_slaves/1]).
 
 %% Client API
 start_slaves(N) ->
-  list_to_tuple([{Pid} || {ok, Pid} <- [slave:start() || _ <- lists:seq(1,N)]]).
+  [Pid || {ok, Pid} <- [slave:start() || _ <- lists:seq(1,N)]].
 
 kill_slaves(Pids) ->
-  lists:map(fun stop/1, Pids).
+  lists:foreach(fun stop/1, Pids).
 
-iterate(C_pid, Iterations, C_board, P_pid, N_pid) ->
-  gen_server:cast(C_pid, {iterate, Iterations, C_board, P_pid, N_pid}).
-
+iterate(C_pid, Iterations, C_board, P_pid, N_pid, Master_pid) when Iterations > 0 ->
+  gen_server:cast(C_pid, {iterate, Iterations, C_board, P_pid, N_pid, Master_pid});
+iterate(C_pid, _Iterations, C_board, _P_pid, _N_pid, Master_pid) ->
+  gen_server:cast(Master_pid, {result, self(), C_board}).
 
 %% Public API
 
@@ -34,7 +35,7 @@ state(Pid) ->
 
 init([]) ->
   say("init", []),
-  {ok, []}.
+  {ok, #state{}}.
 
 
 handle_call(stop, _From, State) ->
@@ -50,40 +51,41 @@ handle_call(_Request, _From, State) ->
   {reply, ok, State}.
 
 % casts from master
-handle_cast({iterate, Iterations, Board, none, N_pid}, State = #state{}) ->
+handle_cast({iterate, Iterations, Board, none, N_pid, Master_pid}, State) ->
   send_last_row(N_pid, Board),
-  calculate_middle(Board),
-  {noreply, State#state{board = Board, neighbors_count = 1, iterations = Iterations}};
-handle_cast({iterate, Iterations, Board, P_pid, none}, State = #state{}) ->
+  NewBoard = calculate_middle(Board),
+  {noreply, State#state{board = Board, new_board = NewBoard, neighbors_count = 1, iterations = Iterations, n_pid = N_pid, master_pid = Master_pid}};
+handle_cast({iterate, Iterations, Board, P_pid, none, Master_pid}, State) ->
   send_first_row(P_pid, Board),
-  calculate_middle(Board),
-  {noreply, State#state{board = Board, neighbors_count = 1, iterations = Iterations}};
-handle_cast({iterate, Iterations, Board, P_pid, N_pid}, State = #state{}) ->
+  NewBoard = calculate_middle(Board),
+  {noreply, State#state{board = Board, new_board = NewBoard, neighbors_count = 1, iterations = Iterations, p_pid = P_pid, master_pid = Master_pid}};
+handle_cast({iterate, Iterations, Board, P_pid, N_pid, Master_pid}, State) ->
   send_last_row(N_pid, Board),
   send_first_row(P_pid, Board),
-  calculate_middle(Board),
-  {noreply, State#state{board = Board, neighbors_count = 2, iterations = Iterations}};
+  NewBoard = calculate_middle(Board),
+  {noreply, State#state{board = Board, new_board = NewBoard, neighbors_count = 2, iterations = Iterations, n_pid = N_pid, p_pid = P_pid, master_pid = Master_pid}};
 
 % casts from other slaves
-handle_cast({previous_row, Row}, State = #state{neighbors_count = Nbc, board = Board}) ->
-  NewBoard = calculate_first_row(Row, Board),
-  NewState = State#state{neighbors_count = Nbc - 1, board = NewBoard},
-  check_if_ready(NewState),
-  {noreply, NewState};
-handle_cast({next_row, Row}, NewState) ->
-  NewBoard = calculate_last_row(Row, Board),
-  NewState = State#state{neighbors_count = Nbc - 1, board = NewBoard},
-  check_if_ready(NewState),
-  {noreply, NewState};
+handle_cast({previous_row, Row}, State = #state{neighbors_count = Nbc, board = Board, new_board = NewBoard}) ->
+  NewBoard = calculate_first_row(Row, Board, NewBoard),
+  NewState = State#state{neighbors_count = Nbc - 1, board = Board, new_board = NewBoard},
+  NewState2 = check_if_ready(NewState),
+  {noreply, NewState2};
+handle_cast({next_row, Row}, State = #state{neighbors_count = Nbc, board = Board, new_board = NewBoard}) ->
+  NewBoard = calculate_last_row(Row, Board, NewBoard),
+  NewState = State#state{neighbors_count = Nbc - 1, board = Board, new_board = NewBoard},
+  NewState2 = check_if_ready(NewState),
+  {noreply, NewState2}.
 
-handle_cast(_Msg, State) ->
-  say("cast ~p, ~p.", [_Msg, State]),
-  {noreply, State}.
+% %handle_cast(_Msg, State) ->
+%   say("cast ~p, ~p.", [_Msg, State]),
+%   {noreply, State}.
 
 
 handle_info(_Info, State) ->
   say("info ~p, ~p.", [_Info, State]),
   {noreply, State}.
+
 
 
 terminate(_Reason, _State) ->
@@ -105,27 +107,27 @@ send_first_row(Pid, Board) ->
   First_row = board_utils:first_row(Board),
   gen_server:cast(Pid, {next_row, First_row}).
 
-check_if_ready(State = #state{neighbors_count = Nbc}) when Nbc > 0 ->
-  ok;
-check_if_ready(State = #state{neighbors_count = Nbc, iterations = Iterations}) ->
-  true.
-
+check_if_ready(State = #state{neighbors_count = Nbc, master_pid = Master_pid}) when Nbc > 0 ->
+  State;
+check_if_ready(State = #state{board = Board, new_board = NewBoard, iterations = Iterations, p_pid = P_pid, n_pid = N_pid, master_pid = Master_pid}) ->
+  iterate(self(), Iterations-1, NewBoard, P_pid, N_pid, Master_pid),
+  State#state{board = NewBoard, iterations = Iterations-1}.
 
 calculate_middle(Board) ->
-  board_utils:iterate_2d_tuple(Board, fun board_utils:determine_cell_value/4).
+  board_utils:iterate_2d_tuple_midarea(Board, fun board_utils:determine_cell_value/4).
 
-calculate_last_row(Next_row, Board) ->
+calculate_last_row(Next_row, Board, NewBoard) ->
   Len = tuple_size(Board),
   BeforeLastRow = element(Len-1, Board),
   LastRow = element(Len, Board), 
   NewLastRow = board_utils:iterate_row(BeforeLastRow, LastRow, Next_row),
-  setelement(Len, Board, NewLastRow).
+  setelement(Len, NewBoard, NewLastRow).
 
-calculate_first_row(Previous_row, Board) ->
+calculate_first_row(Previous_row, Board, NewBoard) ->
   AfterFirstRow = element(1, Board),
   FirstRow = element(2, Board),
   NewFirstRow = board_utils:iterate_row(AfterFirstRow, FirstRow, Previous_row),
-  setelement(1, Board, NewFirstRow).
+  setelement(1, NewBoard, NewFirstRow).
 
 %% helper functions
 
