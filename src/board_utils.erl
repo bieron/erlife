@@ -27,6 +27,34 @@ iterate_2d_tuple_midarea(Board, Fun) ->
   Col_len = tuple_size(element(1,Board)),
   iterate_2d_tuple_midarea(Board, Board, 2, 2, Row_len, Col_len, Fun).
 
+iterate_row(Upper, Middle, Lower) ->
+	Len = tuple_size(Middle),
+	iterate_row(Upper, Middle, Lower, Middle, 2, Len).
+
+
+iterate_row(Upper, Middle, Lower, NewMiddle, CurrIndex, MaxIndex) when CurrIndex < MaxIndex ->
+  CurrValue = element(CurrIndex, Middle),
+  AliveNeighbors =  element(CurrIndex+1, Upper) +
+                    element(CurrIndex, Upper) +
+                    element(CurrIndex-1, Upper) +
+
+                    element(CurrIndex+1, Middle) +
+                    element(CurrIndex-1, Middle) +
+
+                    element(CurrIndex+1, Lower) +
+                    element(CurrIndex, Lower) +
+                    element(CurrIndex-1, Lower),
+
+  NewValue = if AliveNeighbors =:= 3 ->  1;
+              AliveNeighbors =:= 2 andalso CurrValue =:= 1 -> 1;
+              true -> 0
+            end,                    
+  NewMiddle2 = setelement(CurrIndex, NewMiddle, NewValue),
+  iterate_row(Upper, Middle, Lower, NewMiddle2, CurrIndex+1, MaxIndex);
+iterate_row(_, _, _, NewMiddle, _, _) ->
+	NewMiddle.
+
+
 %% implementations
 
 iterate_2d_tuple_midarea(_, New_board, Curr_row, Curr_col, Row_len, Col_len, _) when Curr_row =:= Row_len - 1 andalso Curr_col =:= Col_len ->
@@ -101,5 +129,3 @@ jointolist(I, Tuple, List) when I > tuple_size(Tuple) ->
 	List;
 jointolist(I, Tuple, List) ->
 	jointolist(I+1, Tuple, [element(I, Tuple)|List]).
-
-

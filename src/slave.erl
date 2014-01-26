@@ -2,7 +2,7 @@
 -compile(export_all).
 
 -behaviour(gen_server).
--record(state, {board, neighbors_count}).
+-record(state, {board, neighbors_count, iterations}).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3, start_slaves/1, kill_slaves/1]).
 
 %% Client API
@@ -53,24 +53,28 @@ handle_call(_Request, _From, State) ->
 handle_cast({iterate, Iterations, Board, none, N_pid}, State = #state{}) ->
   send_last_row(N_pid, Board),
   calculate_middle(Board),
-  {noreply, State#state{board = Board, neighbors_count = 1}};
+  {noreply, State#state{board = Board, neighbors_count = 1, iterations = Iterations}};
 handle_cast({iterate, Iterations, Board, P_pid, none}, State = #state{}) ->
   send_first_row(P_pid, Board),
   calculate_middle(Board),
-  {noreply, State#state{board = Board, neighbors_count = 1}};
+  {noreply, State#state{board = Board, neighbors_count = 1, iterations = Iterations}};
 handle_cast({iterate, Iterations, Board, P_pid, N_pid}, State = #state{}) ->
   send_last_row(N_pid, Board),
   send_first_row(P_pid, Board),
   calculate_middle(Board),
-  {noreply, State#state{board = Board, neighbors_count = 2}};
+  {noreply, State#state{board = Board, neighbors_count = 2, iterations = Iterations}};
 
 % casts from other slaves
 handle_cast({previous_row, Row}, State = #state{neighbors_count = Nbc, board = Board}) ->
-  calculate_first_row(Row, Board),
-  {noreply, State#state{neighbors_count = Nbc - 1}};
-handle_cast({next_row, Row}, State = #state{neighbors_count = Nbc, board = Board}) ->
-  calculate_last_row(Row, Board),
-  {noreply, State#state{neighbors_count = Nbc - 1}};
+  NewBoard = calculate_first_row(Row, Board),
+  NewState = State#state{neighbors_count = Nbc - 1, board = NewBoard},
+  check_if_ready(NewState),
+  {noreply, NewState};
+handle_cast({next_row, Row}, NewState) ->
+  NewBoard = calculate_last_row(Row, Board),
+  NewState = State#state{neighbors_count = Nbc - 1, board = NewBoard},
+  check_if_ready(NewState),
+  {noreply, NewState};
 
 handle_cast(_Msg, State) ->
   say("cast ~p, ~p.", [_Msg, State]),
@@ -101,14 +105,27 @@ send_first_row(Pid, Board) ->
   First_row = board_utils:first_row(Board),
   gen_server:cast(Pid, {next_row, First_row}).
 
+check_if_ready(State = #state{neighbors_count = Nbc}) when Nbc > 0 ->
+  ok;
+check_if_ready(State = #state{neighbors_count = Nbc, iterations = = Iterations}) ->
+  .
+
+
 calculate_middle(Board) ->
-  board_utils:iterate_2d_tuple(Board, fun determine_cell_value/4).
+  board_utils:iterate_2d_tuple(Board, fun board_utils:determine_cell_value/4).
 
 calculate_last_row(Next_row, Board) ->
-  true.
+  Len = tuple_size(Board),
+  BeforeLastRow = element(Len-1, Board),
+  LastRow = element(Len, Board), 
+  NewLastRow = board_utils:iterate_row(BeforeLastRow, LastRow, Next_row),
+  setelement(Len, Board, NewLastRow).
 
 calculate_first_row(Previous_row, Board) ->
-  true.
+  AfterFirstRow = element(1, Board),
+  FirstRow = element(2, Board),
+  NewFirstRow = board_utils:iterate_row(AfterFirstRow, FirstRow, Previous_row),
+  setelement(1, Board, NewFirstRow).
 
 %% helper functions
 

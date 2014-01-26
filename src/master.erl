@@ -8,10 +8,10 @@ start() ->
   gen_server:start({local, ?MODULE}, ?MODULE, [], []).
 
 init([]) ->
+	discover_nodes(),
 	c:nl(master),
 	c:nl(slave),
 	c:nl(board_utils),
-	discover_nodes(),
 	Board = list_to_tuple([{X} || X <- lists:seq(1,19)]),
 	{ok, #state{board = Board, iteration = 0}}.
 
