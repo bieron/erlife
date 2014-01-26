@@ -12,7 +12,7 @@ init([]) ->
 	c:nl(master),
 	c:nl(slave),
 	c:nl(board_utils),
-	Board = board_utils:create_board(10),
+	Board = board_utils:create_board(16),
 	say("0: ~n~p~n",[Board]),
 	{ok, #state{board = Board, iteration = 0}}.
 
@@ -21,11 +21,10 @@ begin_work(Slaves) ->
 
 iterate(Iterations, State = #state{board = Board, iteration = Iteration}) ->
 	%Active_nodes = discover_nodes(),
-	Active_nodes = 3,
+	Active_nodes = 4,
 	Slaves = slave:start_slaves(Active_nodes),
 	Slave_boards = board_utils:divide(Board, Active_nodes),
 	Slaves_with_boards = lists:zip(Slaves, Slave_boards),
-	%gen_server:cast(lists:nth(1,Slaves), {iterate, 1, Board, none, none, self()}),
 	order_slaves(Iterations, Slaves_with_boards),
 	begin_work(Slaves),
 	{ok, State#state{iteration = Iteration + Iterations, slaves = Slaves, slaves_with_boards = Slaves_with_boards, response_count = Active_nodes}}.
@@ -99,8 +98,7 @@ handle_cast({result, Slave_pid, Board_frag}, State = #state{
 handle_cast({result, Slave_pid, Board_frag}, State = #state{slaves = Slaves, slaves_with_boards = Slaves_with_boards, caller_pid = Caller} ) ->
 	Index = board_utils:find_slice_index(Slaves_with_boards, Slave_pid),
 	New_slaves_with_boards = board_utils:replace_in_list(Index, Slaves_with_boards, {Slave_pid, Board_frag}),
-	%NewBoard = board_utils:merge(Slaves_with_boards),
-	NewBoard = board_utils:merge(lists:map(fun({_, BoardFrag}) -> BoardFrag end, Slaves_with_boards)),
+	NewBoard = board_utils:merge(lists:map(fun({_, BoardFrag}) -> BoardFrag end, New_slaves_with_boards)),
 	slave:kill_slaves(Slaves),
 	%say("NewBoard:~n~p~ndupa~n",[NewBoard]),
 	gen_server:reply(Caller, NewBoard),
