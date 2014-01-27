@@ -8,24 +8,24 @@
 %% Public API
 
 start() ->
-  gen_server:start_link({global, ?MODULE}, ?MODULE, [], []).
+  gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 stop(Module) ->
   gen_server:call(Module, stop).
 
 stop() ->
-  stop({global, ?MODULE}).
+  stop(?MODULE).
 
 state(Module) ->
   gen_server:call(Module, state).
 
 state() ->
-  state({global, ?MODULE}).
+  state(?MODULE).
 
 next() -> 
-	gen_server:call({global, ?MODULE}, {next, 1}, ?TIMEOUT).
+	gen_server:call(?MODULE, {next, 1}, ?TIMEOUT).
 next(N) ->
-	gen_server:call({global, ?MODULE}, {next, N}, ?TIMEOUT).
+	gen_server:call(?MODULE, {next, N}, ?TIMEOUT).
 
 %% private implementation
 init([]) ->

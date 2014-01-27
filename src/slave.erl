@@ -56,8 +56,8 @@ handle_call(_Request, _From, State) ->
 % casts from master
 handle_cast(begin_work, State = #state{new_board = NewBoard, iterations = Iterations, masNdPid = {MasNode, MasPid}}) when Iterations =:= 0 -> 
   rpc:cast(MasNode, gen_server, cast, [MasPid,{result, {node(),self()}, NewBoard}]),
-  {noreply, State};
-  %{stop, normal, State};
+  %{noreply, State};
+  {stop, normal, State};
 handle_cast(begin_work, State = #state{board = Board}) -> 
   send_border_rows(State),
   NewBoard = calculate_middle(Board),
@@ -141,7 +141,6 @@ calculate_first_row(Previous_row, Board, NewBoard) ->
   setelement(1, NewBoard, NewFirstRow).
 
 %% helper functions
-
 say(Format) ->
   say(Format, []).
 say(Format, Data) ->
