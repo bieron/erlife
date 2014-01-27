@@ -1,4 +1,4 @@
--module(slave).
+-module(slave_bula).
 -compile(export_all).
 
 -behaviour(gen_server).
@@ -7,10 +7,9 @@
 
 %% Client API
 start_slaves(Nodes) ->
-  %[Pid || {ok, Pid} <- [slave:start() || _ <- lists:seq(1,Nodes)]].
+  %[Pid || {ok, Pid} <- [slave_bula:start() || _ <- lists:seq(1,Nodes)]].
   Pids = [Pid || {ok, Pid} <- lists:map(fun(Nd) -> rpc:call(Nd, ?MODULE, start, []) end, Nodes)],
   lists:zip(Nodes, Pids).
-
 
 kill_slaves(Pids) ->
   lists:foreach(fun stop/1, Pids).
@@ -19,7 +18,6 @@ setup(_, Iterations, _, _, _, _) when Iterations =:= 0 ->
   {za_malo_iteracji};
 setup(Cpid, Iterations, Cboard, {Pnode, Ppid}, {Nnode, Npid}, {MasNode, MasId}) ->
   gen_server:cast(Cpid, {setup, Iterations, Cboard, {Pnode, Ppid}, {Nnode, Npid}, {MasNode, MasId}}).
-  % to niepotrzebne (chyba): rpc:cast(Cnode, gen_server, cast, [Cpid, {setup, Iterations, Cboard, {Pnode, Ppid}, {Nnode, Npid}, {MasNode, MasId}}])
 
 begin_work({Node, Pid}) ->
   rpc:cast(Node, gen_server, cast, [Pid, begin_work]).
@@ -39,9 +37,9 @@ state(Pid) ->
 
 %% Server implementation, a.k.a.: callbacks
 init([]) ->
-  c:nl(master),
-  c:nl(slave),
-  c:nl(board_utils),
+  c:nl(master_bula),
+  c:nl(slave_bula),
+  c:nl(board_utils_bula),
   c:nl(benchmark),
   {ok, #state{}}.
 
@@ -53,7 +51,7 @@ handle_call(_Request, _From, State) ->
   {reply, ok, State}.
 
 
-% casts from master
+% casts from master_bula
 handle_cast(begin_work, State = #state{new_board = NewBoard, iterations = Iterations, masNdPid = {MasNode, MasPid}}) when Iterations =:= 0 -> 
   rpc:cast(MasNode, gen_server, cast, [MasPid,{result, {node(),self()}, NewBoard}]),
   %{noreply, State};
@@ -65,10 +63,8 @@ handle_cast(begin_work, State = #state{board = Board}) ->
   NewState2 = check_if_ready(NewState),
   {noreply, NewState2};
 handle_cast({setup, Iterations, Board, {Pnode, Ppid}, {Nnode, Npid}, {MasNode, MasPid}}, State) ->
-  %say("pNdPid: ~p~nnNdPid: ~p~n", [{Pnode, Ppid}, {Nnode, Npid}]),
-  %rpc:cast(Nnode, gen_server, cast, [MasPid, {diag, Npid, Ppid, MasPid}]),
   {noreply, State#state{board = Board, new_board = Board, operations_count = determine_opc(Npid, Ppid), iterations = Iterations, nNdPid = {Nnode, Npid}, pNdPid = {Pnode, Ppid}, masNdPid = {MasNode, MasPid}}};
-% casts from other slaves
+% casts from other slave_bulas
 handle_cast({previous_row, Row}, State = #state{operations_count = Opc, board = Board, new_board = NewBoard}) ->
   NewState2 = calculate_border_row(Opc, Row, Board, NewBoard, State, fun calculate_first_row/3),
   {noreply, NewState2};
@@ -101,11 +97,11 @@ send_border_rows(State = #state{nNdPid = {Nnode, Npid}, pNdPid = {Pnode, Ppid}, 
   send_last_row({Nnode, Npid}, Board). 
 
 send_last_row({Node, Pid}, Board) ->
-  Last_row = board_utils:last_row(Board),
+  Last_row = board_utils_bula:last_row(Board),
   rpc:cast(Node, gen_server, cast, [Pid, {previous_row, Last_row}]).
 
 send_first_row({Node, Pid}, Board) ->
-  First_row = board_utils:first_row(Board),
+  First_row = board_utils_bula:first_row(Board),
   rpc:cast(Node, gen_server, cast, [Pid, {next_row, First_row}]).
 
 check_if_ready(State = #state{operations_count = Opc, iterations = I}) when Opc > 0 ->
@@ -120,7 +116,7 @@ determine_opc(_,_) -> 2.
 
 % Calculate boards functions
 calculate_middle(Board) ->
-  board_utils:iterate_2d_tuple_midarea(Board, fun board_utils:determine_cell_value/4).
+  board_utils_bula:iterate_2d_tuple_midarea(Board, fun board_utils_bula:determine_cell_value/4).
 
 calculate_border_row(Opc, Row, Board, NewBoard, State, Fun) ->
   NewBoard2 = Fun(Row, Board, NewBoard),
@@ -131,13 +127,13 @@ calculate_last_row(Next_row, Board, NewBoard) ->
   Len = tuple_size(Board),
   BeforeLastRow = element(Len-1, Board),
   LastRow = element(Len, Board), 
-  NewLastRow = board_utils:iterate_row(BeforeLastRow, LastRow, Next_row),
+  NewLastRow = board_utils_bula:iterate_row(BeforeLastRow, LastRow, Next_row),
   setelement(Len, NewBoard, NewLastRow).
 
 calculate_first_row(Previous_row, Board, NewBoard) ->
   AfterFirstRow = element(2, Board),
   FirstRow = element(1, Board),
-  NewFirstRow = board_utils:iterate_row(AfterFirstRow, FirstRow, Previous_row),
+  NewFirstRow = board_utils_bula:iterate_row(AfterFirstRow, FirstRow, Previous_row),
   setelement(1, NewBoard, NewFirstRow).
 
 %% helper functions

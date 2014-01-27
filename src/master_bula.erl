@@ -1,4 +1,4 @@
--module(master).
+-module(master_bula).
 -compile(export_all).
 -behaviour(gen_server).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -30,17 +30,17 @@ next(N) ->
 %% private implementation
 init([]) ->
 	discover_nodes(),
-	c:nl(master),
-	c:nl(slave),
-	c:nl(board_utils),
+	c:nl(master_bula),
+	c:nl(slave_bula),
+	c:nl(board_utils_bula),
 	c:nl(benchmark),
-	Board = board_utils:create_board(40),
+	Board = board_utils_bula:create_board(40),
 	{ok, #state{board = Board, iteration = 0}}.
 
 setup(Iterations, State = #state{board = Board, iteration = Iteration}) ->
 	{NodesCount, Nodes} = discover_nodes(),
-	Slaves = slave:start_slaves(Nodes),
-	Slave_boards = board_utils:divide(Board, NodesCount),
+	Slaves = slave_bula:start_slaves(Nodes),
+	Slave_boards = board_utils_bula:divide(Board, NodesCount),
 	Slaves_with_boards = lists:zip(Slaves, Slave_boards),
 	say("slaves with boards ~n~p~n", [Slaves_with_boards]),
 	order_slaves(Iterations, Slaves_with_boards),
@@ -48,18 +48,18 @@ setup(Iterations, State = #state{board = Board, iteration = Iteration}) ->
 	{ok, State#state{iteration = Iteration + Iterations, slaves = Slaves, slaves_with_boards = Slaves_with_boards, response_count = NodesCount}}.
 
 begin_work(Slaves) ->
-	lists:foreach(fun(X) -> slave:begin_work(X) end, Slaves).
+	lists:foreach(fun(X) -> slave_bula:begin_work(X) end, Slaves).
 
 order_slaves(Iterations, [H | T]) ->
 	order_slaves(Iterations, {none, none}, H, T).
 
 order_slaves(Iterations, {none, none}, {{Cnode, Cpid}, Cboard}, [{{Nnode, Npid}, Nboard}|T]) ->
-	rpc:cast(Cnode, slave, setup, [Cpid, Iterations, Cboard, {none, none}, {Nnode, Npid}, {node(), self()}]),
+	rpc:cast(Cnode, slave_bula, setup, [Cpid, Iterations, Cboard, {none, none}, {Nnode, Npid}, {node(), self()}]),
 	order_slaves(Iterations, {{Cnode, Cpid}, Cboard}, {{Nnode, Npid}, Nboard}, T);
 order_slaves(Iterations, {{Pnode, Ppid}, _}, {{Cnode, Cpid}, Cboard}, []) ->
-	rpc:cast(Cnode, slave, setup, [Cpid, Iterations, Cboard, {Pnode, Ppid}, {none, none}, {node(), self()}]);
+	rpc:cast(Cnode, slave_bula, setup, [Cpid, Iterations, Cboard, {Pnode, Ppid}, {none, none}, {node(), self()}]);
 order_slaves(Iterations, {{Pnode, Ppid}, _}, {{Cnode, Cpid}, Cboard}, [{{Nnode, Npid}, Nboard}|T]) ->
-	rpc:cast(Cnode, slave, setup, [Cpid, Iterations, Cboard, {Pnode, Ppid}, {Nnode, Npid}, {node(), self()}]),
+	rpc:cast(Cnode, slave_bula, setup, [Cpid, Iterations, Cboard, {Pnode, Ppid}, {Nnode, Npid}, {node(), self()}]),
 	order_slaves(Iterations, {{Cnode, Cpid}, Cboard}, {{Nnode, Npid}, Nboard}, T).
 
 discover_nodes() ->
@@ -92,16 +92,15 @@ handle_call(_Request, _From, State) ->
 % asynchronous callbacks
 handle_cast({result, Slave, Board_frag}, State = #state{
 	slaves_with_boards = Slaves_with_boards, response_count = Count} ) when Count > 1 ->
-	Index = board_utils:find_slice_index(Slaves_with_boards, Slave),
-	New_slaves_with_boards = board_utils:replace_in_list(Index, Slaves_with_boards, {Slave, Board_frag}),
-	%say("got result ~n~p~n", [Board_frag]),
+	Index = board_utils_bula:find_slice_index(Slaves_with_boards, Slave),
+	New_slaves_with_boards = board_utils_bula:replace_in_list(Index, Slaves_with_boards, {Slave, Board_frag}),
 	{noreply, State#state{slaves_with_boards = New_slaves_with_boards, response_count = Count - 1}};
 handle_cast({result, Slave, Board_frag}, State = #state{slaves = Slaves, slaves_with_boards = Slaves_with_boards, callerpid = Caller} ) ->
-	Index = board_utils:find_slice_index(Slaves_with_boards, Slave),
-	New_slaves_with_boards = board_utils:replace_in_list(Index, Slaves_with_boards, {Slave, Board_frag}),
-	NewBoard = board_utils:merge(lists:map(fun({_, BoardFrag}) -> BoardFrag end, New_slaves_with_boards)),
+	Index = board_utils_bula:find_slice_index(Slaves_with_boards, Slave),
+	New_slaves_with_boards = board_utils_bula:replace_in_list(Index, Slaves_with_boards, {Slave, Board_frag}),
+	NewBoard = board_utils_bula:merge(lists:map(fun({_, BoardFrag}) -> BoardFrag end, New_slaves_with_boards)),
 	gen_server:reply(Caller, NewBoard),
-	say("got result ~n~p~n", [Board_frag]),
+	say("got result ~n~p~n", [NewBoard]),
 	{noreply, State#state{slaves_with_boards = New_slaves_with_boards, board = NewBoard}};
 handle_cast(_Msg, State) ->
   say("cast ~p, ~p.", [_Msg, State]),

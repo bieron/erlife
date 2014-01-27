@@ -1,4 +1,4 @@
--module(board_utils).
+-module(board_utils_bula).
 -compile([export_all]).
 
 %% public API
