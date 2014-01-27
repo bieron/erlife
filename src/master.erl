@@ -55,19 +55,15 @@ order_slaves(Iterations, [H | T]) ->
 
 order_slaves(Iterations, {none, none}, {{Cnode, Cpid}, Cboard}, [{{Nnode, Npid}, Nboard}|T]) ->
 	rpc:cast(Cnode, slave, setup, [Cpid, Iterations, Cboard, {none, none}, {Nnode, Npid}, {node(), self()}]),
-	%slave:setup(Cpid, Iterations, Cboard, none, Npid, self()),
 	order_slaves(Iterations, {{Cnode, Cpid}, Cboard}, {{Nnode, Npid}, Nboard}, T);
 order_slaves(Iterations, {{Pnode, Ppid}, _}, {{Cnode, Cpid}, Cboard}, []) ->
 	rpc:cast(Cnode, slave, setup, [Cpid, Iterations, Cboard, {Pnode, Ppid}, {none, none}, {node(), self()}]);
-	%slave:setup(Cpid, Iterations, Cboard, Ppid, none, self());
 order_slaves(Iterations, {{Pnode, Ppid}, _}, {{Cnode, Cpid}, Cboard}, [{{Nnode, Npid}, Nboard}|T]) ->
 	rpc:cast(Cnode, slave, setup, [Cpid, Iterations, Cboard, {Pnode, Ppid}, {Nnode, Npid}, {node(), self()}]),
-	%slave:setup(Cpid, Iterations, Cboard, Ppid, Npid, self()),
 	order_slaves(Iterations, {{Cnode, Cpid}, Cboard}, {{Nnode, Npid}, Nboard}, T).
 
 discover_nodes() ->
 	Names = [l@le1, l@le2, l@le3, l@le4, l@le5, l@le6, l@le7, l@le8, l@le9, l@le10],
-	%Nodes = lists:map(fun net_adm:ping/1,[l@le1, l@le2, l@le3, l@le4, l@le5, l@le6, l@le7, l@le8, l@le9, l@le10]),
 	Nodes = lists:foldl(fun(N, Nds) -> filter_nodes(N, Nds, net_adm:ping(N)) end, [], Names),
 	Count = length(Nodes),
 	{Count, Nodes}.
