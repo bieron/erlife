@@ -2,23 +2,28 @@
 -compile(export_all).
 
 -behaviour(gen_server).
--record(state, {board, new_board, operations_count = 0, iterations = 0, p_pid = none, n_pid = none, master_pid = none}).
+-record(state, {board, new_board, operations_count = 0, iterations = 0, pNdPid = none, nNdPid = none, masNdPid = none}).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3, start_slaves/1, kill_slaves/1]).
 
 %% Client API
-start_slaves(N) ->
-  [Pid || {ok, Pid} <- [slave:start() || _ <- lists:seq(1,N)]].
+start_slaves(Nodes) ->
+  %[Pid || {ok, Pid} <- [slave:start() || _ <- lists:seq(1,Nodes)]].
+  Pids = [Pid || {ok, Pid} <- lists:map(fun(Nd) -> rpc:call(Nd, ?MODULE, start, []) end, Nodes)],
+  lists:zip(Nodes, Pids).
+
 
 kill_slaves(Pids) ->
   lists:foreach(fun stop/1, Pids).
 
-setup(C_pid, Iterations, C_board, P_pid, N_pid, Master_pid) when Iterations =:= 0 ->
+setup(_, Iterations, _, _, _, _) when Iterations =:= 0 ->
   {za_malo_iteracji};
-setup(C_pid, Iterations, C_board, P_pid, N_pid, Master_pid) ->
-  gen_server:cast(C_pid, {setup, Iterations, C_board, P_pid, N_pid, Master_pid}).
+setup(Cpid, Iterations, Cboard, {Pnode, Ppid}, {Nnode, Npid}, {MasNode, MasId}) ->
+  gen_server:cast(Cpid, {setup, Iterations, Cboard, {Pnode, Ppid}, {Nnode, Npid}, {MasNode, MasId}}).
+  % to niepotrzebne (chyba): rpc:cast(Cnode, gen_server, cast, [Cpid, {setup, Iterations, Cboard, {Pnode, Ppid}, {Nnode, Npid}, {MasNode, MasId}}])
 
-begin_work(Pid) ->
-  gen_server:cast(Pid, begin_work).
+begin_work({Node, Pid}) ->
+  rpc:cast(Node, gen_server, cast, [Pid, begin_work]).
+  %gen_server:cast(Pid, begin_work).
 
 %% Default API
 start() ->
@@ -48,8 +53,10 @@ handle_call(_Request, _From, State) ->
 
 
 % casts from master
-handle_cast(begin_work, State = #state{new_board = NewBoard, iterations = Iterations, master_pid = Master_pid}) when Iterations =:= 0 -> 
-  gen_server:cast(Master_pid, {result, self(), NewBoard}),
+handle_cast(begin_work, State = #state{new_board = NewBoard, iterations = Iterations, masNdPid = {MasNode, MasPid}}) when Iterations =:= 0 -> 
+  rpc:cast(MasNode, gen_server, cast, [MasPid,{result, {node(),self()}, NewBoard}]),
+  %gen_server:cast(MasPid, {result, self(), NewBoard}),
+  stop(self()),
   {noreply, State};
 handle_cast(begin_work, State = #state{board = Board}) -> 
   send_border_rows(State),
@@ -57,8 +64,8 @@ handle_cast(begin_work, State = #state{board = Board}) ->
   NewState = State#state{new_board = NewBoard},
   NewState2 = check_if_ready(NewState),
   {noreply, NewState2};
-handle_cast({setup, Iterations, Board, P_pid, N_pid, Master_pid}, State) ->
-   {noreply, State#state{board = Board, new_board = Board, operations_count = determine_opc(N_pid,P_pid), iterations = Iterations, n_pid = N_pid, p_pid = P_pid, master_pid = Master_pid}};
+handle_cast({setup, Iterations, Board, {Pnode, Ppid}, {Nnode, Npid}, {MasNode, MasPid}}, State) ->
+   {noreply, State#state{board = Board, new_board = Board, operations_count = determine_opc(Npid, Ppid), iterations = Iterations, nNdPid = {Nnode, Npid}, pNdPid = {Pnode, Ppid}, masNdPid = {MasNode, MasPid}}};
 % casts from other slaves
 handle_cast({previous_row, Row}, State = #state{operations_count = Opc, board = Board, new_board = NewBoard}) ->
   NewState2 = calculate_border_row(Opc, Row, Board, NewBoard, State, fun calculate_first_row/3),
@@ -83,28 +90,30 @@ code_change(_OldVsn, State, _Extra) ->
   {ok, State}.
 
 %% private API
-send_border_rows(State = #state{p_pid = none, n_pid = N_pid, board = Board}) ->
-  send_last_row(N_pid, Board);
-send_border_rows(State = #state{n_pid = none, p_pid = P_pid, board = Board}) ->
-  send_first_row(P_pid, Board);
-send_border_rows(State = #state{n_pid = N_pid, p_pid = P_pid, board = Board}) ->
-  send_first_row(P_pid, Board),
-  send_last_row(N_pid, Board). 
+send_border_rows(State = #state{pNdPid = none, nNdPid = {Nnode, Npid}, board = Board}) ->
+  send_last_row({Nnode, Npid}, Board);
+send_border_rows(State = #state{nNdPid = none, pNdPid = {Pnode, Ppid}, board = Board}) ->
+  send_first_row({Pnode, Ppid}, Board);
+send_border_rows(State = #state{nNdPid = {Nnode, Npid}, pNdPid = {Pnode, Ppid}, board = Board}) ->
+  send_first_row({Pnode, Ppid}, Board),
+  send_last_row({Nnode, Npid}, Board). 
 
-send_last_row(Pid, Board) ->
+send_last_row({Node, Pid}, Board) ->
   Last_row = board_utils:last_row(Board),
-  gen_server:cast(Pid, {previous_row, Last_row}).
+  rpc:cast(Node, gen_server, cast, [Pid, {previous_row, Last_row}]).
+  %gen_server:cast(Pid, {previous_row, Last_row}).
 
-send_first_row(Pid, Board) ->
+send_first_row({Node, Pid}, Board) ->
   First_row = board_utils:first_row(Board),
-  gen_server:cast(Pid, {next_row, First_row}).
+  %gen_server:cast(Pid, {next_row, First_row}).
+  rpc:cast(Node, gen_server, cast, [Pid, {next_row, First_row}]).
 
 check_if_ready(State = #state{operations_count = Opc, iterations = I}) when Opc > 0 ->
   State#state{operations_count = Opc-1};
 
-check_if_ready(State = #state{new_board = NewBoard, iterations = Iterations, p_pid = P_pid, n_pid = N_pid, operations_count = Opc}) ->
-  begin_work(self()),
-  State#state{board = NewBoard, iterations = Iterations-1, operations_count = determine_opc(P_pid,N_pid)}.
+check_if_ready(State = #state{new_board = NewBoard, iterations = Iterations, pNdPid = {Pnode, Ppid}, nNdPid = {Nnode, Npid}, operations_count = Opc}) ->
+  begin_work({node(),self()}),
+  State#state{board = NewBoard, iterations = Iterations-1, operations_count = determine_opc(Ppid,Npid)}.
 
 determine_opc(Pid1, Pid2) when Pid1 =:= none orelse Pid2 =:= none -> 1;
 determine_opc(_,_) -> 2.
