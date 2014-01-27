@@ -20,7 +20,7 @@ test_loop(M, F, A, N, List) ->
     {T, _Result} = timer:tc(M, F, A),
     test_loop(M, F, A, N - 1, [T|List]).
 
-bench() -> bench([10],10).
-bench(A,N) -> 
+test_time() -> test_time([10],10).
+test_time(A,N) -> 
 %   master:start(),
    test_avg(master, next, A, N).
