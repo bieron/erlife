@@ -12,8 +12,7 @@ start_slaves(N) ->
 kill_slaves(Pids) ->
   lists:foreach(fun stop/1, Pids).
 
-setup(C_pid, Iterations, C_board, P_pid, N_pid, Master_pid) when Iterations =:= 0 ->
-  {za_malo_iteracji};
+setup(_, 0, _, _, _, _) -> {za_malo_iteracji};
 setup(C_pid, Iterations, C_board, P_pid, N_pid, Master_pid) ->
   gen_server:cast(C_pid, {setup, Iterations, C_board, P_pid, N_pid, Master_pid}).
 
@@ -59,13 +58,19 @@ handle_cast(begin_work, State = #state{board = Board}) ->
   {noreply, NewState2};
 handle_cast({setup, Iterations, Board, P_pid, N_pid, Master_pid}, State) ->
    {noreply, State#state{board = Board, new_board = Board, operations_count = determine_opc(N_pid,P_pid), iterations = Iterations, n_pid = N_pid, p_pid = P_pid, master_pid = Master_pid}};
+
 % casts from other slaves
-handle_cast({previous_row, Row}, State = #state{operations_count = Opc, board = Board, new_board = NewBoard}) ->
-  NewState2 = calculate_border_row(Opc, Row, Board, NewBoard, State, fun calculate_first_row/3),
-  {noreply, NewState2};
-handle_cast({next_row, Row}, State = #state{operations_count = Opc, board = Board, new_board = NewBoard}) ->
-  NewState2 = calculate_border_row(Opc, Row, Board, NewBoard, State,  fun calculate_last_row/3),
-  {noreply, NewState2};
+handle_cast({previous_row, Row}, State) ->
+   {noreply, calculate_border_row(Row, State, fun calculate_first_row/3)};
+handle_cast({next_row, Row}, State) ->
+   {noreply, calculate_border_row(Row, State, fun calculate_last_row/3)};
+%  {noreply, NewState2};
+%handle_cast({previous_row, Row}, State = #state{operations_count = Opc, board = Board, new_board = NewBoard}) ->
+%  NewState2 = calculate_border_row(Opc, Row, Board, NewBoard, State, fun calculate_first_row/3),
+%  {noreply, NewState2};
+%handle_cast({next_row, Row}, State = #state{operations_count = Opc, board = Board, new_board = NewBoard}) ->
+%  NewState2 = calculate_border_row(Opc, Row, Board, NewBoard, State,  fun calculate_last_row/3),
+%  {noreply, NewState2};
 handle_cast(_Msg, State) ->
   say("cast ~p, ~p.", [_Msg, State]),
   {noreply, State}.
@@ -99,10 +104,10 @@ send_first_row(Pid, Board) ->
   First_row = board_utils:first_row(Board),
   gen_server:cast(Pid, {next_row, First_row}).
 
-check_if_ready(State = #state{operations_count = Opc, iterations = I}) when Opc > 0 ->
+check_if_ready(State = #state{operations_count = Opc}) when Opc > 0 ->
   State#state{operations_count = Opc-1};
 
-check_if_ready(State = #state{new_board = NewBoard, iterations = Iterations, p_pid = P_pid, n_pid = N_pid, operations_count = Opc}) ->
+check_if_ready(State = #state{new_board = NewBoard, iterations = Iterations, p_pid = P_pid, n_pid = N_pid}) ->
   begin_work(self()),
   State#state{board = NewBoard, iterations = Iterations-1, operations_count = determine_opc(P_pid,N_pid)}.
 
@@ -113,7 +118,7 @@ determine_opc(_,_) -> 2.
 calculate_middle(Board) ->
   board_utils:iterate_2d_tuple_midarea(Board, fun board_utils:determine_cell_value/4).
 
-calculate_border_row(Opc, Row, Board, NewBoard, State, Fun) ->
+calculate_border_row(Row, State = #state{board = Board, new_board = NewBoard}, Fun) ->
   NewBoard2 = Fun(Row, Board, NewBoard),
   NewState = State#state{board = Board, new_board = NewBoard2},
   check_if_ready(NewState).

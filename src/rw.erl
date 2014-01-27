@@ -29,8 +29,8 @@ write(A) ->
 %            lists:foreach(fun(S) -> master:say("~p", [S]) end, Strings), %i tu tez moze byc
 %            lists:foreach(fun(S) -> io:fwrite(Fd, "~p~n", [S]) end, Strings) %i tu tez moze byc
 %         end
-   end,
-      master:say("~p~n",[Fd]).
+   end.
+     % master:say("~p~n",[Fd]).
 %   {ok,Fd} = file:open( make_fname(), [write,compressed] ),
 %   io:write(Fd,A), 
 %   file:write_file( make_fname(), A).
