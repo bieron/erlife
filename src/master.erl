@@ -3,7 +3,7 @@
 -behaviour(gen_server).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 -record(state, {board, iteration, slaves, slaves_with_boards, response_count, callerpid}).
--define(TIMEOUT, 20000).
+-define(TIMEOUT, 60000).
 
 %% Public API
 
@@ -34,7 +34,7 @@ init([]) ->
 	c:nl(slave),
 	c:nl(board_utils),
 	c:nl(benchmark),
-	Board = board_utils:create_board(15),
+	Board = board_utils:create_board(40),
 	{ok, #state{board = Board, iteration = 0}}.
 
 setup(Iterations, State = #state{board = Board, iteration = Iteration}) ->
@@ -94,13 +94,12 @@ handle_cast({result, Slave, Board_frag}, State = #state{
 	slaves_with_boards = Slaves_with_boards, response_count = Count} ) when Count > 1 ->
 	Index = board_utils:find_slice_index(Slaves_with_boards, Slave),
 	New_slaves_with_boards = board_utils:replace_in_list(Index, Slaves_with_boards, {Slave, Board_frag}),
-	say("got result ~n~p~n", [Board_frag]),
+	%say("got result ~n~p~n", [Board_frag]),
 	{noreply, State#state{slaves_with_boards = New_slaves_with_boards, response_count = Count - 1}};
 handle_cast({result, Slave, Board_frag}, State = #state{slaves = Slaves, slaves_with_boards = Slaves_with_boards, callerpid = Caller} ) ->
 	Index = board_utils:find_slice_index(Slaves_with_boards, Slave),
 	New_slaves_with_boards = board_utils:replace_in_list(Index, Slaves_with_boards, {Slave, Board_frag}),
 	NewBoard = board_utils:merge(lists:map(fun({_, BoardFrag}) -> BoardFrag end, New_slaves_with_boards)),
-	%slave:kill_slaves(Slaves),
 	gen_server:reply(Caller, NewBoard),
 	say("got result ~n~p~n", [Board_frag]),
 	{noreply, State#state{slaves_with_boards = New_slaves_with_boards, board = NewBoard}};

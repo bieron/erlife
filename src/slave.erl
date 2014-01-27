@@ -45,7 +45,6 @@ init([]) ->
   c:nl(benchmark),
   {ok, #state{}}.
 
-
 handle_call(stop, _From, State) ->
   {stop, normal, stopped, State};
 handle_call(state, _From, State) ->
@@ -57,8 +56,8 @@ handle_call(_Request, _From, State) ->
 % casts from master
 handle_cast(begin_work, State = #state{new_board = NewBoard, iterations = Iterations, masNdPid = {MasNode, MasPid}}) when Iterations =:= 0 -> 
   rpc:cast(MasNode, gen_server, cast, [MasPid,{result, {node(),self()}, NewBoard}]),
-  stop(self()),
   {noreply, State};
+  %{stop, normal, State};
 handle_cast(begin_work, State = #state{board = Board}) -> 
   send_border_rows(State),
   NewBoard = calculate_middle(Board),
@@ -66,9 +65,8 @@ handle_cast(begin_work, State = #state{board = Board}) ->
   NewState2 = check_if_ready(NewState),
   {noreply, NewState2};
 handle_cast({setup, Iterations, Board, {Pnode, Ppid}, {Nnode, Npid}, {MasNode, MasPid}}, State) ->
-  say("pNdPid: ~p~nnNdPid: ~p~n", [{Pnode, Ppid}, {Nnode, Npid}]),
-  rpc:cast(Nnode, gen_server, cast, [MasPid
-    , {diag, Npid, Ppid, MasPid}]),
+  %say("pNdPid: ~p~nnNdPid: ~p~n", [{Pnode, Ppid}, {Nnode, Npid}]),
+  %rpc:cast(Nnode, gen_server, cast, [MasPid, {diag, Npid, Ppid, MasPid}]),
   {noreply, State#state{board = Board, new_board = Board, operations_count = determine_opc(Npid, Ppid), iterations = Iterations, nNdPid = {Nnode, Npid}, pNdPid = {Pnode, Ppid}, masNdPid = {MasNode, MasPid}}};
 % casts from other slaves
 handle_cast({previous_row, Row}, State = #state{operations_count = Opc, board = Board, new_board = NewBoard}) ->
