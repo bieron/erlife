@@ -1,11 +1,7 @@
 -module(board_utils).
 -compile([export_all]).
 
-%divide(Board, N) ->
-%	.
-
-%merge(Boards) ->
-%	.
+%% public API
 
 last_row(Board) ->
 	element(tuple_size(Board), Board).
@@ -30,60 +26,6 @@ iterate_2d_tuple_midarea(Board, Fun) ->
 iterate_row(Upper, Middle, Lower) ->
 	Len = tuple_size(Middle),
 	iterate_row(Upper, Middle, Lower, Middle, 2, Len).
-
-
-iterate_row(Upper, Middle, Lower, NewMiddle, CurrIndex, MaxIndex) when CurrIndex < MaxIndex ->
-  CurrValue = element(CurrIndex, Middle),
-  AliveNeighbors =  element(CurrIndex+1, Upper) +
-                    element(CurrIndex, Upper) +
-                    element(CurrIndex-1, Upper) +
-
-                    element(CurrIndex+1, Middle) +
-                    element(CurrIndex-1, Middle) +
-
-                    element(CurrIndex+1, Lower) +
-                    element(CurrIndex, Lower) +
-                    element(CurrIndex-1, Lower),
-
-  NewValue = if AliveNeighbors =:= 3 ->  1;
-              AliveNeighbors =:= 2 andalso CurrValue =:= 1 -> 1;
-              true -> 0
-            end,                    
-  NewMiddle2 = setelement(CurrIndex, NewMiddle, NewValue),
-  iterate_row(Upper, Middle, Lower, NewMiddle2, CurrIndex+1, MaxIndex);
-iterate_row(_, _, _, NewMiddle, _, _) ->
-	NewMiddle.
-
-
-%% implementations
-
-iterate_2d_tuple_midarea(_, New_board, Curr_row, Curr_col, Row_len, Col_len, _) when Curr_row =:= Row_len - 1 andalso Curr_col =:= Col_len ->
-  New_board;
-iterate_2d_tuple_midarea(Board, New_board, Curr_row, Curr_col, Row_len, Col_len, Fun) when Curr_col =:= Col_len ->
-  iterate_2d_tuple_midarea(Board, New_board, Curr_row+1, 2 , Row_len, Col_len, Fun);
-
-iterate_2d_tuple_midarea(Board, New_board, Curr_row, Curr_col, Row_len, Col_len, Fun) when Curr_col < Col_len ->
-  New_board2 = Fun(Board, New_board, Curr_row, Curr_col),
-  iterate_2d_tuple_midarea(Board, New_board2, Curr_row, Curr_col + 1, Row_len, Col_len, Fun).
-
-determine_cell_value(Board, New_board, Cur_row, Cur_col) ->
-  CurrValue = element(Cur_col, element(Cur_row, Board)),
-  AliveNeighbors =  element(Cur_col-1, element(Cur_row+1, Board)) +
-                    element(Cur_col-1, element(Cur_row, Board)) +
-                    element(Cur_col-1, element(Cur_row-1, Board)) +
-
-                    element(Cur_col, element(Cur_row+1, Board)) +
-                    element(Cur_col, element(Cur_row-1, Board)) +
-
-                    element(Cur_col+1, element(Cur_row+1, Board)) +
-                    element(Cur_col+1, element(Cur_row, Board)) +
-                    element(Cur_col+1, element(Cur_row-1, Board)),
-
-  NewValue = if AliveNeighbors =:= 3 ->  1;
-              AliveNeighbors =:= 2 andalso CurrValue =:= 1 -> 1;
-              true -> 0
-            end,                    
-  setelement(Cur_row, New_board, setelement(Cur_col, element(Cur_row, New_board), NewValue)).
 
 % divide
 
@@ -138,3 +80,55 @@ find_slice_index([_|T],Id,Acc) -> find_slice_index(T,Id,Acc+1).
 
 replace_in_list(Index, List, Element) ->
 	lists:sublist(List,Index-1) ++ [Element] ++ lists:nthtail(Index,List).
+
+%% iterations implementations
+
+iterate_2d_tuple_midarea(_, New_board, Curr_row, Curr_col, Row_len, Col_len, _) when Curr_row =:= Row_len - 1 andalso Curr_col =:= Col_len ->
+  New_board;
+iterate_2d_tuple_midarea(Board, New_board, Curr_row, Curr_col, Row_len, Col_len, Fun) when Curr_col =:= Col_len ->
+  iterate_2d_tuple_midarea(Board, New_board, Curr_row+1, 2 , Row_len, Col_len, Fun);
+
+iterate_2d_tuple_midarea(Board, New_board, Curr_row, Curr_col, Row_len, Col_len, Fun) when Curr_col < Col_len ->
+  New_board2 = Fun(Board, New_board, Curr_row, Curr_col),
+  iterate_2d_tuple_midarea(Board, New_board2, Curr_row, Curr_col + 1, Row_len, Col_len, Fun).
+
+iterate_row(Upper, Middle, Lower, NewMiddle, CurrIndex, MaxIndex) when CurrIndex < MaxIndex ->
+  CurrValue = element(CurrIndex, Middle),
+  AliveNeighbors =  element(CurrIndex+1, Upper) +
+                    element(CurrIndex, Upper) +
+                    element(CurrIndex-1, Upper) +
+
+                    element(CurrIndex+1, Middle) +
+                    element(CurrIndex-1, Middle) +
+
+                    element(CurrIndex+1, Lower) +
+                    element(CurrIndex, Lower) +
+                    element(CurrIndex-1, Lower),
+
+  NewValue = if AliveNeighbors =:= 3 ->  1;
+              AliveNeighbors =:= 2 andalso CurrValue =:= 1 -> 1;
+              true -> 0
+            end,                    
+  NewMiddle2 = setelement(CurrIndex, NewMiddle, NewValue),
+  iterate_row(Upper, Middle, Lower, NewMiddle2, CurrIndex+1, MaxIndex);
+iterate_row(_, _, _, NewMiddle, _, _) ->
+  NewMiddle.
+
+determine_cell_value(Board, New_board, Cur_row, Cur_col) ->
+  CurrValue = element(Cur_col, element(Cur_row, Board)),
+  AliveNeighbors =  element(Cur_col-1, element(Cur_row+1, Board)) +
+                    element(Cur_col-1, element(Cur_row, Board)) +
+                    element(Cur_col-1, element(Cur_row-1, Board)) +
+
+                    element(Cur_col, element(Cur_row+1, Board)) +
+                    element(Cur_col, element(Cur_row-1, Board)) +
+
+                    element(Cur_col+1, element(Cur_row+1, Board)) +
+                    element(Cur_col+1, element(Cur_row, Board)) +
+                    element(Cur_col+1, element(Cur_row-1, Board)),
+
+  NewValue = if AliveNeighbors =:= 3 ->  1;
+              AliveNeighbors =:= 2 andalso CurrValue =:= 1 -> 1;
+              true -> 0
+            end,                    
+  setelement(Cur_row, New_board, setelement(Cur_col, element(Cur_row, New_board), NewValue)).
