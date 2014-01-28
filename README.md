@@ -1,6 +1,6 @@
 Rozproszone Erlang Game of Life
 ======
-Na branchu master nasz Erlang Game of Life jest rozproszony na wątkach na lokalnym hoscie. 
+Na branchu local nasz Erlang Game of Life jest rozproszony na wątkach na lokalnym hoscie. 
 
 Kompilujemy poleceniem `erl -make` wywołanym z katalogu `erlife/`.
 Kompilowane są źródła z katalogu `erlife/src`, binarki znajdują się w `erlife/ebin`.
