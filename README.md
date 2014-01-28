@@ -29,4 +29,6 @@ Użycie:
 
 `master_bula:save().%zapisuje bieżącą, wyliczoną tablicę do fff.gz w working-dir`
 
+Wersja programu działająca lokalnie znajduje się na branchu `local`.
+
 Więcej informacji w pliku `erlang_readme.pdf`
