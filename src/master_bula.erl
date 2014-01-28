@@ -2,7 +2,7 @@
 -compile(export_all).
 -behaviour(gen_server).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
--record(state, {board, iteration, slaves, slaves_with_boards, response_count, callerpid}).
+-record(state, {board, iteration, slaves, slaves_with_boards, response_count, callerpid, board_size}).
 -define(TIMEOUT, 60000).
 
 %% Public API
@@ -34,8 +34,8 @@ init([]) ->
 	c:nl(slave_bula),
 	c:nl(board_utils_bula),
 	c:nl(benchmark),
-	Board = board_utils_bula:create_board(40),
-	{ok, #state{board = Board, iteration = 0}}.
+	{Board, Board_size} = lifeio:testRead("fff.gz"),
+	{ok, #state{board = Board, iteration = 0, board_size = Board_size}}.
 
 setup(Iterations, State = #state{board = Board, iteration = Iteration}) ->
 	{NodesCount, Nodes} = discover_nodes(),
@@ -74,6 +74,9 @@ filter_nodes(_N, Nodes, _) -> Nodes.
 
 count_pongs(pong, Sum) -> Sum + 1;
 count_pongs(_, Sum) -> Sum.
+
+save() -> 
+	lifeio:testWrite(#state.board_size).
 
 %% Server implementation, a.k.a.: callbacks
 % synchronous callbacks
