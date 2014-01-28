@@ -8,8 +8,8 @@ start(BoardSize) ->
 	c:nl(slave_bula).
 
 read_and_start(FileName) ->
-	init(). % tu zmien . na ,
-	%master_bula:start(FileName).
+	init(),
+	master_bula:start(FileName).
 
 init() ->
 	c:l(master_bula),
