@@ -63,7 +63,7 @@ order_slaves(Iterations, {{Pnode, Ppid}, _}, {{Cnode, Cpid}, Cboard}, [{{Nnode, 
 	order_slaves(Iterations, {{Cnode, Cpid}, Cboard}, {{Nnode, Npid}, Nboard}, T).
 
 discover_nodes() ->
-	Names = [l@le1, l@le2, l@le3, l@le4, l@le5, l@le6, l@le7, l@le8, l@le9, l@le10],
+	Names = [l@le1, l@le2, l@le3, l@le4, l@le5, l@le6, l@le7, l@le8],
 	Nodes = lists:foldl(fun(N, Nds) -> filter_nodes(N, Nds, net_adm:ping(N)) end, [], Names),
 	Count = length(Nodes),
 	{Count, Nodes}.
