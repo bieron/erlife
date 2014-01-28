@@ -20,6 +20,7 @@ test_loop(M, F, A, N, List) ->
     {T, _Result} = timer:tc(M, F, A),
     test_loop(M, F, A, N - 1, [T|List]).
 
+test_time(N) -> test_time([N], 1).
 test_time() -> test_time([10],10).
 test_time(A,N) -> 
 %   master:start(),
