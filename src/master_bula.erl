@@ -8,7 +8,9 @@
 %% Public API
 
 start() ->
-  gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+  gen_server:start_link({local, ?MODULE}, ?MODULE, ["fff.gz"], []).
+start(FileName) ->
+  gen_server:start_link({local, ?MODULE}, ?MODULE, [FileName], []).
 
 stop(Module) ->
   gen_server:call(Module, stop).
@@ -28,9 +30,9 @@ next(N) ->
 	gen_server:call(?MODULE, {next, N}, ?TIMEOUT).
 
 %% private implementation
-init([]) ->
+init([FileName]) ->
 	discover_nodes(),
-	{Board, Board_size} = lifeio:testRead("fff.gz"),
+	{Board, Board_size} = lifeio:testRead(FileName),
 	{ok, #state{board = Board, iteration = 0, board_size = Board_size}}.
 
 setup(Iterations, State = #state{board = Board, iteration = Iteration}) ->
