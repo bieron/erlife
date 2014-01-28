@@ -42,7 +42,7 @@ setup(Iterations, State = #state{board = Board, iteration = Iteration}) ->
 	Slaves = slave_bula:start_slaves(Nodes),
 	Slave_boards = board_utils_bula:divide(Board, NodesCount),
 	Slaves_with_boards = lists:zip(Slaves, Slave_boards),
-	say("slaves with boards ~n~p~n", [Slaves_with_boards]),
+	%say("slaves with boards ~n~p~n", [Slaves_with_boards]),
 	order_slaves(Iterations, Slaves_with_boards),
 	begin_work(Slaves),
 	{ok, State#state{iteration = Iteration + Iterations, slaves = Slaves, slaves_with_boards = Slaves_with_boards, response_count = NodesCount}}.
@@ -54,12 +54,12 @@ order_slaves(Iterations, [H | T]) ->
 	order_slaves(Iterations, {none, none}, H, T).
 
 order_slaves(Iterations, {none, none}, {{Cnode, Cpid}, Cboard}, [{{Nnode, Npid}, Nboard}|T]) ->
-	rpc:cast(Cnode, slave_bula, setup, [Cpid, Iterations, Cboard, {none, none}, {Nnode, Npid}, {node(), self()}]),
+	rpc:call(Cnode, slave_bula, setup, [Cpid, Iterations, Cboard, {none, none}, {Nnode, Npid}, {node(), self()}]),
 	order_slaves(Iterations, {{Cnode, Cpid}, Cboard}, {{Nnode, Npid}, Nboard}, T);
 order_slaves(Iterations, {{Pnode, Ppid}, _}, {{Cnode, Cpid}, Cboard}, []) ->
-	rpc:cast(Cnode, slave_bula, setup, [Cpid, Iterations, Cboard, {Pnode, Ppid}, {none, none}, {node(), self()}]);
+	rpc:call(Cnode, slave_bula, setup, [Cpid, Iterations, Cboard, {Pnode, Ppid}, {none, none}, {node(), self()}]);
 order_slaves(Iterations, {{Pnode, Ppid}, _}, {{Cnode, Cpid}, Cboard}, [{{Nnode, Npid}, Nboard}|T]) ->
-	rpc:cast(Cnode, slave_bula, setup, [Cpid, Iterations, Cboard, {Pnode, Ppid}, {Nnode, Npid}, {node(), self()}]),
+	rpc:call(Cnode, slave_bula, setup, [Cpid, Iterations, Cboard, {Pnode, Ppid}, {Nnode, Npid}, {node(), self()}]),
 	order_slaves(Iterations, {{Cnode, Cpid}, Cboard}, {{Nnode, Npid}, Nboard}, T).
 
 discover_nodes() ->
@@ -103,7 +103,7 @@ handle_cast({result, Slave, Board_frag}, State = #state{slaves = Slaves, slaves_
 	New_slaves_with_boards = board_utils_bula:replace_in_list(Index, Slaves_with_boards, {Slave, Board_frag}),
 	NewBoard = board_utils_bula:merge(lists:map(fun({_, BoardFrag}) -> BoardFrag end, New_slaves_with_boards)),
 	gen_server:reply(Caller, NewBoard),
-	say("got result ~n~p~n", [NewBoard]),
+	%say("got result ~n~p~n", [NewBoard]),
 	{noreply, State#state{slaves_with_boards = New_slaves_with_boards, board = NewBoard}};
 handle_cast(_Msg, State) ->
   say("cast ~p, ~p.", [_Msg, State]),

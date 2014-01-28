@@ -80,7 +80,7 @@ handle_info(_Info, State) ->
   {noreply, State}.
 
 terminate(_Reason, _State) ->
-  say("terminate ~p, ~p", [_Reason, _State]),
+  %say("terminate ~p, ~p", [_Reason, _State]),
   ok.
 
 code_change(_OldVsn, State, _Extra) ->
