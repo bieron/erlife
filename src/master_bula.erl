@@ -30,10 +30,6 @@ next(N) ->
 %% private implementation
 init([]) ->
 	discover_nodes(),
-	c:nl(master_bula),
-	c:nl(slave_bula),
-	c:nl(board_utils_bula),
-	c:nl(benchmark),
 	{Board, Board_size} = lifeio:testRead("fff.gz"),
 	{ok, #state{board = Board, iteration = 0, board_size = Board_size}}.
 

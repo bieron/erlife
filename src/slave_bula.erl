@@ -37,10 +37,6 @@ state(Pid) ->
 
 %% Server implementation, a.k.a.: callbacks
 init([]) ->
-  c:nl(master_bula),
-  c:nl(slave_bula),
-  c:nl(board_utils_bula),
-  c:nl(benchmark),
   {ok, #state{}}.
 
 handle_call(stop, _From, State) ->
