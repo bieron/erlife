@@ -24,4 +24,4 @@ test_time(N) -> test_time([N], 1).
 test_time() -> test_time([10],10).
 test_time(A,N) -> 
 %   master:start(),
-   test_avg(master, next, A, N).
+   test_avg(master_bula, next, A, N).
